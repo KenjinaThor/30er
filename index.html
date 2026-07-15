@@ -42,6 +42,12 @@
     padding:1.2rem .9rem 4rem;
   }
   .wrap{max-width:640px;margin:0 auto}
+  @media (min-width:900px){
+    .wrap{max-width:860px}
+    body{padding:2rem 1.5rem 4rem}
+    .board{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.9rem}
+    .p-card .score{font-size:3.2rem}
+  }
 
   /* ---------- Kreide-Optik ---------- */
   .chalk-text{text-shadow:0 0 1px rgba(243,239,228,.55)}
