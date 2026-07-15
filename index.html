@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>30er – Punktetafel</title>
+<meta name="theme-color" content="#22322c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="30er">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="icons/favicon-48.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Karla:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --board:#22322c;
+    --board-deep:#18241f;
+    --chalk:#f3efe4;
+    --chalk-dim:#a7b3a8;
+    --line:rgba(243,239,228,.30);
+    --yellow:#eac55c;
+    --red:#e8837a;
+    --blue:#92bdd3;
+    --sketch-a:255px 15px 225px 15px / 15px 225px 15px 255px;
+    --sketch-b:15px 225px 15px 255px / 255px 15px 225px 15px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:'Karla',sans-serif;
+    color:var(--chalk);
+    background:
+      radial-gradient(ellipse 120% 90% at 50% -10%, rgba(243,239,228,.05), transparent 55%),
+      radial-gradient(ellipse 140% 120% at 50% 115%, var(--board-deep), transparent 60%),
+      var(--board);
+    min-height:100vh;
+    padding:1.2rem .9rem 4rem;
+  }
+  .wrap{max-width:640px;margin:0 auto}
+
+  /* ---------- Kreide-Optik ---------- */
+  .chalk-text{text-shadow:0 0 1px rgba(243,239,228,.55)}
+  .sketch{
+    border:2px solid var(--line);
+    border-radius:var(--sketch-a);
+    background:rgba(243,239,228,.03);
+  }
+  .sketch.alt{border-radius:var(--sketch-b)}
+
+  header{text-align:center;margin-bottom:1.4rem}
+  header h1{
+    font-family:'Caveat',cursive;
+    font-size:3.4rem;font-weight:700;line-height:1;
+    letter-spacing:.02em;
+    text-shadow:0 0 2px rgba(243,239,228,.5);
+    transform:rotate(-1.5deg);
+  }
+  header .sub{color:var(--chalk-dim);font-size:.9rem;margin-top:.15rem}
+  .die{display:inline-block;vertical-align:-6px;margin:0 .35rem;transform:rotate(8deg)}
+
+  h2{
+    font-family:'Caveat',cursive;font-size:1.9rem;font-weight:600;
+    margin-bottom:.7rem;transform:rotate(-.6deg);
+    text-shadow:0 0 1px rgba(243,239,228,.5);
+  }
+  .card{padding:1rem 1.1rem;margin-bottom:1.1rem}
+  label{display:block;font-size:.82rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--chalk-dim);margin-bottom:.3rem}
+
+  input[type=text],input[type=number],select{
+    width:100%;
+    background:rgba(24,36,31,.6);
+    border:2px solid var(--line);
+    border-radius:12px 6px 12px 6px;
+    color:var(--chalk);
+    font-family:'Karla',sans-serif;
+    font-size:1.05rem;
+    padding:.55rem .7rem;
+  }
+  input:focus,select:focus,button:focus-visible{
+    outline:2px solid var(--yellow);
+    outline-offset:2px;
+  }
+  input.score-in{font-family:'Caveat',cursive;font-size:1.6rem;text-align:center;padding:.3rem .5rem}
+  ::placeholder{color:rgba(167,179,168,.6)}
+
+  button{
+    font-family:'Karla',sans-serif;font-weight:700;font-size:1rem;
+    color:var(--chalk);
+    background:transparent;
+    border:2px solid var(--chalk);
+    border-radius:var(--sketch-a);
+    padding:.55rem 1.2rem;
+    cursor:pointer;
+    transition:transform .12s ease, background .12s ease;
+  }
+  button:hover{background:rgba(243,239,228,.08);transform:rotate(-.8deg)}
+  button.primary{border-color:var(--yellow);color:var(--yellow)}
+  button.ghost{border-color:var(--line);color:var(--chalk-dim);font-weight:600}
+  button.small{font-size:.85rem;padding:.35rem .8rem}
+  button:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  @media (prefers-reduced-motion: reduce){
+    button{transition:none}button:hover{transform:none}
+  }
+
+  .row{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+  .grow{flex:1 1 auto}
+  .mt{margin-top:.9rem}
+  .muted{color:var(--chalk-dim);font-size:.9rem}
+  .hint{color:var(--chalk-dim);font-size:.83rem;margin-top:.35rem;line-height:1.45}
+
+  /* ---------- Optionen (Richtung / Variante) ---------- */
+  .opt-group{display:flex;gap:.6rem;flex-wrap:wrap}
+  .opt{
+    flex:1 1 200px;
+    border:2px solid var(--line);border-radius:var(--sketch-b);
+    padding:.6rem .8rem;cursor:pointer;
+    background:rgba(243,239,228,.02);
+  }
+  .opt input{position:absolute;opacity:0;pointer-events:none}
+  .opt.on{border-color:var(--yellow)}
+  .opt .t{font-weight:700}
+  .opt .d{font-size:.8rem;color:var(--chalk-dim);margin-top:.15rem;line-height:1.35}
+  .opt.on .t{color:var(--yellow)}
+
+  /* ---------- Spieler-Setup ---------- */
+  .pl-row{display:flex;gap:.5rem;margin-bottom:.55rem;align-items:center}
+  .pl-row .num{font-family:'Caveat',cursive;font-size:1.5rem;width:1.4rem;text-align:center;color:var(--chalk-dim)}
+  .pl-row button{padding:.3rem .7rem;font-size:1.1rem;line-height:1;border-radius:50% 45% 50% 45%}
+
+  /* ---------- Spieltafel ---------- */
+  .statusbar{
+    display:flex;justify-content:space-between;align-items:center;gap:.6rem;
+    padding:.5rem .9rem;margin-bottom:1rem;flex-wrap:wrap;
+  }
+  .statusbar .dir{font-size:.88rem;color:var(--blue)}
+  .board{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.7rem;margin-bottom:1.1rem}
+  .p-card{
+    padding:.7rem .8rem .8rem;position:relative;
+    border:2px solid var(--line);border-radius:var(--sketch-a);
+    background:rgba(243,239,228,.03);
+  }
+  .p-card:nth-child(even){border-radius:var(--sketch-b);transform:rotate(.4deg)}
+  .p-card:nth-child(odd){transform:rotate(-.4deg)}
+  .p-card.current{border-color:var(--yellow);box-shadow:0 0 0 1px var(--yellow), 0 0 14px rgba(234,197,92,.15)}
+  .p-card.negative{border-color:var(--red)}
+  .p-card.out{opacity:.45}
+  .p-card .name{font-weight:700;font-size:.95rem;word-break:break-word}
+  .p-card .score{
+    font-family:'Caveat',cursive;font-size:2.7rem;font-weight:700;line-height:1;
+    margin-top:.15rem;text-shadow:0 0 2px rgba(243,239,228,.45);
+  }
+  .p-card.negative .score{color:var(--red)}
+  .p-card .tag{font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-top:.25rem}
+  .p-card .tag.dead{color:var(--red)}
+  .p-card .tag.turn{color:var(--yellow)}
+  .p-card .pip{position:absolute;top:.45rem;right:.5rem}
+
+  /* ---------- Zug-Panel ---------- */
+  .turn-title{font-family:'Caveat',cursive;font-size:1.7rem;color:var(--yellow);text-shadow:0 0 1px rgba(234,197,92,.5)}
+  .feedback{
+    border-left:3px solid var(--blue);
+    padding:.45rem .7rem;margin:.7rem 0 0;
+    font-size:.95rem;line-height:1.5;color:var(--chalk);
+    background:rgba(146,189,211,.06);border-radius:0 10px 10px 0;
+  }
+  .feedback b{color:var(--yellow)}
+  .feedback.bad{border-color:var(--red);background:rgba(232,131,122,.07)}
+  .feedback.bad b{color:var(--red)}
+
+  /* ---------- Protokoll ---------- */
+  details.log summary{
+    cursor:pointer;font-family:'Caveat',cursive;font-size:1.5rem;
+    list-style:none;padding:.2rem 0;
+  }
+  details.log summary::-webkit-details-marker{display:none}
+  details.log summary::after{content:" ▾";color:var(--chalk-dim);font-size:1rem}
+  details.log[open] summary::after{content:" ▴"}
+  .log-list{list-style:none;margin-top:.4rem;max-height:260px;overflow:auto}
+  .log-list li{
+    font-size:.87rem;line-height:1.45;padding:.35rem 0;
+    border-bottom:1px dashed rgba(243,239,228,.15);color:var(--chalk-dim);
+  }
+  .log-list li b{color:var(--chalk)}
+  .log-list li.round{color:var(--blue);font-weight:700;border-bottom:1px solid rgba(146,189,211,.3)}
+
+  /* ---------- Sieger ---------- */
+  .winner{text-align:center;padding:2rem 1rem}
+  .winner .crown{font-size:2.4rem}
+  .winner h2{font-size:2.6rem;color:var(--yellow);transform:rotate(-1deg)}
+  .winner .final{font-family:'Caveat',cursive;font-size:1.6rem;margin:.8rem 0 1.4rem;color:var(--chalk-dim)}
+
+  /* ---------- Regeln ---------- */
+  details.rules{margin-top:1.6rem;color:var(--chalk-dim);font-size:.88rem;line-height:1.55}
+  details.rules summary{cursor:pointer;font-weight:700;color:var(--chalk)}
+  details.rules ul{margin:.5rem 0 .5rem 1.2rem}
+  details.rules li{margin-bottom:.3rem}
+
+  /* ---------- Animationen (FX) ---------- */
+  .fx-overlay{position:fixed;inset:0;z-index:60;pointer-events:none;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  .fx-p{position:absolute;will-change:transform,opacity}
+  .fx-msg{
+    position:relative;z-index:2;
+    font-family:'Caveat',cursive;font-weight:700;
+    font-size:clamp(1.7rem,6.5vw,3rem);line-height:1.15;
+    color:var(--yellow);text-align:center;max-width:88%;
+    padding:.5rem 1.3rem;
+    background:rgba(24,36,31,.9);
+    border:2px solid var(--yellow);border-radius:var(--sketch-a);
+    text-shadow:0 0 2px rgba(234,197,92,.5);
+    transform:rotate(-2deg);
+    animation:fxPop .45s cubic-bezier(.2,1.6,.4,1) both;
+  }
+  .fx-msg.big{color:var(--red);border-color:var(--red);text-shadow:0 0 2px rgba(232,131,122,.5)}
+  .fx-msg.miss{color:var(--blue);border-color:var(--blue);text-shadow:0 0 2px rgba(146,189,211,.5)}
+  .fx-wobble{animation:fxPop .45s both, fxWobble .5s ease-in-out .45s 4 alternate}
+  .fx-snail{left:-10%;bottom:6%;font-size:2.6rem;animation:fxCrawl 3s linear both}
+  @keyframes fxPop{from{opacity:0;transform:scale(.5) rotate(-7deg)}to{opacity:1;transform:scale(1) rotate(-2deg)}}
+  @keyframes fxWobble{from{transform:rotate(-4deg)}to{transform:rotate(3deg)}}
+  @keyframes fxSplat{0%{opacity:0;transform:scale(0) rotate(-40deg)}55%{opacity:1;transform:scale(1.5) rotate(10deg)}75%{transform:scale(1) rotate(0)}100%{opacity:0;transform:scale(1)}}
+  @keyframes fxRain{0%{opacity:0;transform:translateY(0) rotate(0)}10%{opacity:1}100%{opacity:.9;transform:translateY(120vh) rotate(300deg)}}
+  @keyframes fxZap{0%{opacity:0;transform:translateY(0)}15%{opacity:1}45%{opacity:.25}60%{opacity:1}100%{opacity:0;transform:translateY(80vh)}}
+  @keyframes fxBoom{0%{opacity:0;transform:scale(.2)}35%{opacity:1;transform:scale(1.8)}100%{opacity:0;transform:scale(2.4)}}
+  @keyframes fxCrawl{from{transform:translateX(0)}to{transform:translateX(120vw)}}
+  @keyframes fxShake{0%,100%{transform:translate(0,0)}20%{transform:translate(-6px,3px)}40%{transform:translate(5px,-4px)}60%{transform:translate(-4px,-3px)}80%{transform:translate(4px,3px)}}
+  body.fx-shake{animation:fxShake .55s ease}
+  @media (prefers-reduced-motion: reduce){
+    .fx-p,.fx-snail{display:none}
+    .fx-msg,.fx-wobble{animation:none}
+    body.fx-shake{animation:none}
+  }
+
+  footer{text-align:center;margin-top:2.2rem;color:rgba(167,179,168,.55);font-size:.78rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 class="chalk-text"><span class="die" aria-hidden="true">
+      <svg width="34" height="34" viewBox="0 0 34 34"><rect x="2" y="2" width="30" height="30" rx="7" fill="none" stroke="#f3efe4" stroke-width="2.5"/><circle cx="11" cy="11" r="2.6" fill="#eac55c"/><circle cx="23" cy="11" r="2.6" fill="#eac55c"/><circle cx="17" cy="17" r="2.6" fill="#eac55c"/><circle cx="11" cy="23" r="2.6" fill="#eac55c"/><circle cx="23" cy="23" r="2.6" fill="#eac55c"/></svg>
+    </span>30er</h1>
+    <div class="sub">Die Punktetafel zum Würfelspiel – ihr würfelt, die Tafel rechnet.</div>
+  </header>
+
+  <main id="app" aria-live="polite"></main>
+
+  <details class="rules">
+    <summary>Spielregeln (Kurzfassung)</summary>
+    <ul>
+      <li><b>Würfeln:</b> 6 Würfel, pro Wurf mindestens 1 Würfel zur Seite legen, einmalig zwingend mindestens 2 – dadurch maximal 5 Würfe. Die Summe der gelegten Würfel zählt (6–36).</li>
+      <li><b>Startpunkte:</b> Jeder erwürfelt so seine Startpunktzahl.</li>
+      <li><b>Zug:</b> Genau 30 → nichts passiert. Über 30 → Differenz wird gutgeschrieben. Unter 30 → Differenz wird abgezogen.</li>
+      <li><b>Abziehen:</b> Wer über 30 würfelt, würfelt danach auf die Zielzahl (Differenz zu 30): alle Treffer zur Seite, Rest weiterwürfeln, bis kein Treffer mehr fällt. Sind alle 6 Würfel Treffer, geht es mit allen 6 weiter. Abzug = Treffer × Zielzahl – beim Nachbarn in der vereinbarten Richtung. Punkte werden nur abgezogen, nicht übertragen.</li>
+      <li><b>Slow-Death:</b> Wer unter 0 fällt, spielt weiter und kann sich zurückkämpfen. Im Minus kann er nicht beklaut werden und beim Abziehen wird er übersprungen. Abziehen darf nur, wer seinen Zug mit 0 oder mehr Punkten beginnt.</li>
+      <li><b>Instant-Death:</b> Wer unter 0 fällt, scheidet sofort aus und wird übersprungen.</li>
+      <li><b>Ende:</b> Wenn nur noch ein Spieler einen Score von 0 oder mehr hat.</li>
+    </ul>
+  </details>
+
+  <footer>30er Punktetafel · läuft komplett im Browser · keine Daten verlassen dieses Gerät</footer>
+</div>
+
+<script>
+"use strict";
+
+/* ============================== State ============================== */
+const MIN_ROLL = 6, MAX_ROLL = 36;
+
+let S = freshState();
+
+function freshState(){
+  return {
+    phase: "setup",              // setup | start | game | end
+    players: [                   // {name, score, out}
+      {name:"", score:0, out:false},
+      {name:"", score:0, out:false},
+    ],
+    dirNext: true,               // true = Abzug beim nachfolgenden Spieler
+    variant: "slow",             // slow | instant
+    anim: true,                  // Animationen an/aus
+    starter: 0,
+    turn: 0,
+    round: 1,
+    pendingSteal: null,          // {diff, targetIdx}
+    feedback: null,              // {text, bad}
+    log: [],
+    history: [],
+    winner: null,
+  };
+}
+
+const app = document.getElementById("app");
+const clone = o => JSON.parse(JSON.stringify(o));
+const esc = s => s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ============================ Spiellogik ============================ */
+function inGame(p){ return !p.out && p.score >= 0; }          // zählt für Sieg & darf beklaut werden
+function takesTurn(p){ return S.variant === "slow" ? !p.out : inGame(p); }
+
+function snapshot(){
+  const {history, ...rest} = S;
+  S.history.push(clone(rest));
+  if (S.history.length > 60) S.history.shift();
+}
+function undo(){
+  const prev = S.history.pop();
+  if (!prev) return;
+  S = {...prev, history: S.history};
+  render();
+}
+
+function addLog(html, cls){ S.log.unshift({html, cls: cls||""}); }
+
+function nextTurn(){
+  const n = S.players.length;
+  let i = S.turn;
+  for (let step = 1; step <= n; step++){
+    const j = (i + step) % n;
+    if (takesTurn(S.players[j])){
+      if (j <= i) { S.round++; addLog(`Runde ${S.round}`, "round"); }
+      S.turn = j;
+      return;
+    }
+  }
+}
+
+function stealTarget(fromIdx){
+  const n = S.players.length;
+  const step = S.dirNext ? 1 : -1;
+  for (let k = 1; k < n; k++){
+    const j = ((fromIdx + step * k) % n + n) % n;
+    if (j === fromIdx) continue;
+    if (inGame(S.players[j])) return j;
+  }
+  return null;
+}
+
+function checkDeath(p, wasNegative){
+  if (p.score >= 0 || wasNegative) return;
+  if (S.variant === "instant"){
+    p.out = true;
+    addLog(`💀 <b>${esc(p.name)}</b> fällt unter 0 und scheidet aus (Instant-Death).`);
+  } else {
+    addLog(`🩸 <b>${esc(p.name)}</b> fällt unter 0 – ist im Minus, kämpft aber weiter (Slow-Death).`);
+  }
+}
+
+function checkWinner(){
+  const alive = S.players.filter(inGame);
+  if (alive.length === 1 && S.players.length > 1){
+    S.winner = S.players.indexOf(alive[0]);
+    S.phase = "end";
+    addLog(`🏆 <b>${esc(alive[0].name)}</b> gewinnt das Spiel!`);
+    return true;
+  }
+  return false;
+}
+
+function submitRoll(sum){
+  const p = S.players[S.turn];
+  snapshot();
+  S.feedback = null;
+
+  if (sum === 30){
+    addLog(`<b>${esc(p.name)}</b> würfelt genau <b>30</b> – nichts passiert. (Stand: ${p.score})`);
+    S.feedback = {text: `${p.name} würfelt genau 30 – nichts passiert.`};
+    nextTurn();
+  } else if (sum < 30){
+    const d = 30 - sum;
+    const wasNeg = p.score < 0;
+    p.score -= d;
+    addLog(`<b>${esc(p.name)}</b> würfelt ${sum} → <b>−${d}</b> → neuer Stand <b>${p.score}</b>.`);
+    S.feedback = {text: `${p.name}: ${sum} gewürfelt → −${d} Punkte → neuer Stand ${p.score}.`, bad: true};
+    checkDeath(p, wasNeg);
+    if (!checkWinner()) nextTurn();
+  } else {
+    const d = sum - 30;
+    const wasNeg = p.score < 0;
+    p.score += d;
+    addLog(`<b>${esc(p.name)}</b> würfelt ${sum} → <b>+${d}</b> → neuer Stand <b>${p.score}</b>.`);
+    if (wasNeg && p.score >= 0){
+      addLog(`💪 <b>${esc(p.name)}</b> ist zurück im positiven Bereich!`);
+    }
+    const target = stealTarget(S.turn);
+    if (wasNeg){
+      S.feedback = p.score < 0
+        ? {text: `${p.name}: +${d} → Stand ${p.score}. Noch im Minus – darf nicht abziehen.`, bad: true}
+        : {text: `${p.name}: +${d} → Stand ${p.score}. Zurück im Plus – abziehen ist aber erst ab dem nächsten Zug erlaubt.`};
+      addLog(`${esc(p.name)} war zu Zugbeginn im Minus und darf deshalb nicht abziehen.`);
+      nextTurn();
+    } else if (target === null){
+      S.feedback = {text: `${p.name}: +${d} → Stand ${p.score}. Kein gültiger Nachbar zum Abziehen.`};
+      addLog(`Kein gültiger Nachbar – Abzug entfällt.`);
+      if (!checkWinner()) nextTurn();
+    } else {
+      S.pendingSteal = {diff: d, targetIdx: target};
+      S.feedback = {text: `${p.name}: +${d} → Stand ${p.score}. Jetzt auf die ${d} würfeln!`};
+    }
+  }
+  render();
+  if (sum <= 20) playFX("tease", {name: p.name});
+}
+
+function submitSteal(count){
+  const {diff, targetIdx} = S.pendingSteal;
+  const p = S.players[S.turn];
+  const t = S.players[targetIdx];
+  snapshot();
+
+  const amount = count * diff;
+  if (amount > 0){
+    t.score -= amount;
+    addLog(`<b>${esc(p.name)}</b> sammelt ${count}× die <b>${diff}</b> → <b>−${amount}</b> bei <b>${esc(t.name)}</b> → neuer Stand <b>${t.score}</b>.`);
+    S.feedback = {text: `${t.name} verliert ${amount} Punkte (${count} × ${diff}) → neuer Stand ${t.score}.`, bad: true};
+    checkDeath(t, false);
+  } else {
+    addLog(`<b>${esc(p.name)}</b> trifft keine ${diff} – kein Abzug bei ${esc(t.name)}.`);
+    S.feedback = {text: `Keine ${diff} getroffen – kein Abzug.`};
+  }
+  S.pendingSteal = null;
+  if (!checkWinner()) nextTurn();
+  render();
+  if (amount > 10) playFX("bigsteal", {stealer: p.name, victim: t.name, amount});
+  else if (amount === 0) playFX("nosteal", {stealer: p.name, victim: t.name, diff});
+}
+
+/* ============================ Animationen ============================ */
+const TEASE_MSGS = [
+  "Autsch, {name}… wer hat dir das Würfeln beigebracht? 😅",
+  "{name} würfelt wie mit verbundenen Augen 🙈",
+  "Selbst die Würfel schämen sich für dich, {name}!",
+  "Buuuh, {name}! Das war wohl nichts…",
+  "{name}, eine Schnecke wäre schneller bei 30 🐌",
+  "Oje, {name} – die Würfel haben heute frei!",
+  "{name}, sollen wir dir Glückswürfel besorgen? 🎲",
+  "Nicht weinen, {name} – üben, üben, üben!",
+];
+const BIGSTEAL_MSGS = [
+  "BOOM! {stealer} zieht {victim} satte {amount} Punkte ab! 💥",
+  "Gnadenlos! {victim} verliert {amount} Punkte!",
+  "Volltreffer von {stealer}: {victim} −{amount}!",
+  "Autsch! {amount} Punkte weg – tut uns leid, {victim}… nicht. 😏",
+  "{stealer} räumt ab – {victim} muss {amount} Punkte lassen!",
+];
+const NOSTEAL_MSGS = [
+  "{stealer} zielt… und trifft gar nichts! 🙈",
+  "Keine einzige {diff}! {victim} lacht sich ins Fäustchen 😏",
+  "Glück gehabt, {victim} – {stealer} hat nur Luft gewürfelt!",
+  "Alles daneben, {stealer}! {victim} bleibt unversehrt 🍀",
+  "Grosse Ankündigung, null Wirkung – klassisch, {stealer}!",
+  "{stealer} wollte zuschlagen… und verfehlt komplett!",
+];
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+function fxParticles(ov, emoji, n, anim, opts = {}){
+  for (let i = 0; i < n; i++){
+    const s = document.createElement("span");
+    s.className = "fx-p";
+    s.textContent = Array.isArray(emoji) ? pick(emoji) : emoji;
+    s.style.left = (Math.random() * 88 + 4) + "%";
+    s.style.top = (opts.top !== undefined ? opts.top : (Math.random() * 65 + 12)) + "%";
+    s.style.fontSize = (Math.random() * 1.4 + 1.5) + "rem";
+    s.style.animation = `${anim} ${((opts.dur || 1.8) + Math.random() * 0.8).toFixed(2)}s ease ${(Math.random() * 0.6).toFixed(2)}s both`;
+    ov.appendChild(s);
+  }
+}
+
+function playFX(kind, data){
+  if (!S.anim) return;
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  document.querySelectorAll(".fx-overlay").forEach(el => el.remove());
+
+  const ov = document.createElement("div");
+  ov.className = "fx-overlay";
+  const msg = document.createElement("div");
+  msg.className = "fx-msg";
+  let shake = false;
+
+  if (kind === "tease"){
+    msg.textContent = pick(TEASE_MSGS).split("{name}").join(data.name);
+    const v = Math.floor(Math.random() * 4);
+    if (v === 0) fxParticles(ov, "🍅", 9, "fxSplat");
+    else if (v === 1) fxParticles(ov, ["🤣","😂"], 12, "fxRain", {top: -12, dur: 2.2});
+    else if (v === 2){
+      const sn = document.createElement("span");
+      sn.className = "fx-p fx-snail";
+      sn.textContent = "🐌";
+      ov.appendChild(sn);
+    } else {
+      fxParticles(ov, ["🙈","😬"], 8, "fxSplat");
+      msg.classList.add("fx-wobble");
+    }
+  } else if (kind === "nosteal"){
+    msg.textContent = pick(NOSTEAL_MSGS)
+      .split("{stealer}").join(data.stealer)
+      .split("{victim}").join(data.victim)
+      .split("{diff}").join(data.diff);
+    msg.classList.add("miss");
+    const v = Math.floor(Math.random() * 4);
+    if (v === 0) fxParticles(ov, "💨", 9, "fxSplat");
+    else if (v === 1) fxParticles(ov, "🍀", 12, "fxRain", {top: -12, dur: 2.2});
+    else if (v === 2) fxParticles(ov, ["🎯","❌"], 8, "fxSplat");
+    else {
+      fxParticles(ov, "🦗", 6, "fxSplat", {dur: 2.4});
+      msg.classList.add("fx-wobble");
+    }
+  } else { // bigsteal
+    msg.textContent = pick(BIGSTEAL_MSGS)
+      .split("{stealer}").join(data.stealer)
+      .split("{victim}").join(data.victim)
+      .split("{amount}").join(data.amount);
+    msg.classList.add("big");
+    shake = true;
+    const v = Math.floor(Math.random() * 3);
+    if (v === 0) fxParticles(ov, "💥", 7, "fxBoom", {dur: 1.2});
+    else if (v === 1) fxParticles(ov, "⚡", 10, "fxZap", {top: -12, dur: 0.9});
+    else fxParticles(ov, ["🔨","💥"], 8, "fxBoom", {dur: 1.2});
+  }
+
+  ov.appendChild(msg);
+  document.body.appendChild(ov);
+  if (shake && !reduced){
+    document.body.classList.add("fx-shake");
+    setTimeout(() => document.body.classList.remove("fx-shake"), 650);
+  }
+  setTimeout(() => ov.remove(), 3200);
+}
+
+/* ============================== Views ============================== */
+function render(){
+  if (S.phase === "setup") renderSetup();
+  else if (S.phase === "start") renderStart();
+  else if (S.phase === "game") renderGame();
+  else renderEnd();
+}
+
+function optHTML(name, value, current, title, desc){
+  const on = value === current;
+  return `<label class="opt ${on ? "on" : ""}">
+    <input type="radio" name="${name}" value="${value}" ${on ? "checked" : ""}>
+    <span class="t">${title}</span><span class="d" style="display:block">${desc}</span>
+  </label>`;
+}
+
+/* ---------- 1) Setup ---------- */
+function renderSetup(){
+  const rows = S.players.map((p,i)=>`
+    <div class="pl-row">
+      <span class="num">${i+1}.</span>
+      <input class="grow" type="text" data-pname="${i}" value="${esc(p.name)}"
+             placeholder="Name Spieler ${i+1}" maxlength="20" autocomplete="off">
+      <button class="ghost" data-action="removePlayer" data-i="${i}" title="Spieler entfernen"
+        ${S.players.length <= 2 ? "disabled" : ""} aria-label="Spieler ${i+1} entfernen">✕</button>
+    </div>`).join("");
+
+  app.innerHTML = `
+    <section class="card sketch">
+      <h2>Wer spielt mit?</h2>
+      <p class="hint" style="margin:-.4rem 0 .7rem">Reihenfolge = Sitzreihenfolge am Tisch (im Uhrzeigersinn eintragen).</p>
+      ${rows}
+      <button class="ghost small mt" data-action="addPlayer" ${S.players.length >= 8 ? "disabled" : ""}>+ Spieler hinzufügen</button>
+    </section>
+
+    <section class="card sketch alt">
+      <h2>In welche Richtung wird abgezogen?</h2>
+      <div class="opt-group" data-optgroup="dir">
+        ${optHTML("dir","next", S.dirNext ? "next":"prev", "Nachfolgender Spieler", "Im Uhrzeigersinn – Abzug trifft den nächsten in der Liste.")}
+        ${optHTML("dir","prev", S.dirNext ? "next":"prev", "Vorheriger Spieler", "Im Gegenuhrzeigersinn – Abzug trifft den vorherigen in der Liste.")}
+      </div>
+    </section>
+
+    <section class="card sketch">
+      <h2>Spielvariante</h2>
+      <div class="opt-group" data-optgroup="variant">
+        ${optHTML("variant","slow", S.variant, "Slow-Death", "Unter 0 heisst im Minus: weiterspielen und zurückkämpfen, aber weder beklaut werden noch abziehen.")}
+        ${optHTML("variant","instant", S.variant, "Instant-Death", "Unter 0 heisst sofort ausgeschieden.")}
+      </div>
+    </section>
+
+    <section class="card sketch alt">
+      <h2>Animationen</h2>
+      <div class="opt-group" data-optgroup="anim">
+        ${optHTML("anim","on", S.anim ? "on":"off", "An", "Freche Einblendungen bei schwachen Würfen (20 oder weniger), grossen Abzügen (mehr als 10 Punkte) und erfolglosen Abzugsversuchen.")}
+        ${optHTML("anim","off", S.anim ? "on":"off", "Aus", "Nur nüchterne Punkteverwaltung ohne Extras.")}
+      </div>
+    </section>
+
+    <div class="row" style="justify-content:flex-end">
+      <button class="primary" data-action="toStart">Weiter zu den Startpunkten →</button>
+    </div>`;
+
+  app.querySelectorAll("[data-pname]").forEach(inp=>{
+    inp.addEventListener("input", e => { S.players[+e.target.dataset.pname].name = e.target.value; });
+  });
+  bindOptGroups();
+}
+
+function bindOptGroups(){
+  app.querySelectorAll("[data-optgroup]").forEach(g=>{
+    g.addEventListener("change", e=>{
+      const v = e.target.value;
+      if (g.dataset.optgroup === "dir") S.dirNext = (v === "next");
+      else if (g.dataset.optgroup === "variant") S.variant = v;
+      else if (g.dataset.optgroup === "anim") S.anim = (v === "on");
+      render();
+    });
+  });
+}
+
+/* ---------- 2) Startpunkte ---------- */
+function renderStart(){
+  const rows = S.players.map((p,i)=>`
+    <div class="pl-row">
+      <span class="grow" style="font-weight:700">${esc(p.name)}</span>
+      <input class="score-in" style="width:6.5rem" type="number" inputmode="numeric"
+             min="${MIN_ROLL}" max="${MAX_ROLL}" data-pstart="${i}"
+             value="${p.score || ""}" placeholder="6–36">
+    </div>`).join("");
+
+  const starterOpts = S.players.map((p,i)=>
+    `<option value="${i}" ${i===S.starter?"selected":""}>${esc(p.name)}</option>`).join("");
+
+  app.innerHTML = `
+    <section class="card sketch">
+      <h2>Startpunkte erwürfeln</h2>
+      <p class="hint" style="margin:-.4rem 0 .8rem">Jeder würfelt seine Startpunktzahl (6 Würfel, max. 5 Würfe) – hier eintragen.</p>
+      ${rows}
+      <div class="mt">
+        <label for="starterSel">Wer beginnt?</label>
+        <select id="starterSel">${starterOpts}</select>
+      </div>
+      <p class="hint" id="startErr" style="color:var(--red)"></p>
+      <div class="row mt" style="justify-content:space-between">
+        <button class="ghost" data-action="backToSetup">← Zurück</button>
+        <button class="primary" data-action="beginGame">Spiel starten 🎲</button>
+      </div>
+    </section>`;
+
+  app.querySelectorAll("[data-pstart]").forEach(inp=>{
+    inp.addEventListener("input", e=>{
+      S.players[+e.target.dataset.pstart].score = parseInt(e.target.value, 10) || 0;
+    });
+  });
+  app.querySelector("#starterSel").addEventListener("change", e=>{ S.starter = +e.target.value; });
+}
+
+/* ---------- 3) Spiel ---------- */
+function pipSVG(){
+  return `<svg class="pip" width="20" height="20" viewBox="0 0 34 34" aria-hidden="true"><rect x="2" y="2" width="30" height="30" rx="7" fill="none" stroke="#eac55c" stroke-width="3"/><circle cx="11" cy="11" r="3" fill="#eac55c"/><circle cx="23" cy="23" r="3" fill="#eac55c"/><circle cx="23" cy="11" r="3" fill="#eac55c"/><circle cx="11" cy="23" r="3" fill="#eac55c"/></svg>`;
+}
+
+function boardHTML(){
+  return `<div class="board">` + S.players.map((p,i)=>{
+    const cur = S.phase === "game" && i === S.turn;
+    const neg = !p.out && p.score < 0;
+    let tag = "";
+    if (p.out) tag = `<div class="tag dead">ausgeschieden</div>`;
+    else if (neg) tag = `<div class="tag dead">im Minus</div>`;
+    else if (cur) tag = `<div class="tag turn">am Zug</div>`;
+    return `<div class="p-card ${cur?"current":""} ${neg?"negative":""} ${p.out?"out":""}">
+      ${cur ? pipSVG() : ""}
+      <div class="name">${esc(p.name)}</div>
+      <div class="score chalk-text">${p.score}</div>
+      ${tag}
+    </div>`;
+  }).join("") + `</div>`;
+}
+
+function feedbackHTML(){
+  if (!S.feedback) return "";
+  return `<div class="feedback ${S.feedback.bad?"bad":""}">${esc(S.feedback.text).replace(/(\+?\-?\d+)/g,"<b>$1</b>")}</div>`;
+}
+
+function logHTML(){
+  if (!S.log.length) return "";
+  return `<details class="log card sketch alt" open>
+    <summary class="chalk-text">Protokoll</summary>
+    <ul class="log-list">${S.log.map(l=>`<li class="${l.cls}">${l.html}</li>`).join("")}</ul>
+  </details>`;
+}
+
+function renderGame(){
+  const p = S.players[S.turn];
+  const dirLabel = S.dirNext ? "Abzug → nachfolgender Spieler" : "Abzug → vorheriger Spieler";
+  const varLabel = S.variant === "slow" ? "Slow-Death" : "Instant-Death";
+
+  let panel;
+  if (S.pendingSteal){
+    const {diff, targetIdx} = S.pendingSteal;
+    const t = S.players[targetIdx];
+    panel = `
+      <section class="card sketch">
+        <div class="turn-title">${esc(p.name)} zieht bei ${esc(t.name)} ab</div>
+        <p class="hint" style="margin:.3rem 0 .8rem">
+          Zielzahl <b style="color:var(--yellow)">${diff}</b>: alle 6 Würfel werfen, jede ${diff} zur Seite,
+          Rest weiterwürfeln bis keine ${diff} mehr fällt. Bei 6 Treffern geht's mit allen Würfeln weiter.
+        </p>
+        <label for="stealIn">Wie viele ${diff}er insgesamt gesammelt?</label>
+        <div class="row">
+          <input id="stealIn" class="score-in grow" type="number" inputmode="numeric" min="0" max="99" placeholder="0" autofocus>
+          <button class="primary" data-action="steal">Abziehen</button>
+        </div>
+        <p class="hint" id="stealPrev"></p>
+      </section>`;
+  } else {
+    panel = `
+      <section class="card sketch">
+        <div class="turn-title">Am Zug: ${esc(p.name)}${p.score < 0 ? " (im Minus)" : ""}</div>
+        <label for="rollIn" class="mt">Gewürfelte Augenzahl (${MIN_ROLL}–${MAX_ROLL})</label>
+        <div class="row">
+          <input id="rollIn" class="score-in grow" type="number" inputmode="numeric"
+                 min="${MIN_ROLL}" max="${MAX_ROLL}" placeholder="z.B. 32" autofocus>
+          <button class="primary" data-action="roll">Eintragen</button>
+        </div>
+        <p class="hint" id="rollErr" style="color:var(--red)"></p>
+      </section>`;
+  }
+
+  app.innerHTML = `
+    <div class="statusbar sketch alt">
+      <span class="dir">➜ ${dirLabel}</span>
+      <span class="muted">${varLabel} · Runde ${S.round}</span>
+      <button class="ghost small" data-action="undo" ${S.history.length ? "" : "disabled"}>↩ Rückgängig</button>
+    </div>
+    ${boardHTML()}
+    ${panel}
+    ${feedbackHTML()}
+    ${logHTML()}`;
+
+  const rollIn = app.querySelector("#rollIn");
+  if (rollIn){
+    rollIn.focus();
+    rollIn.addEventListener("keydown", e => { if (e.key === "Enter") doRoll(); });
+  }
+  const stealIn = app.querySelector("#stealIn");
+  if (stealIn){
+    stealIn.focus();
+    stealIn.addEventListener("keydown", e => { if (e.key === "Enter") doSteal(); });
+    stealIn.addEventListener("input", ()=>{
+      const c = parseInt(stealIn.value,10);
+      const prev = app.querySelector("#stealPrev");
+      prev.textContent = (Number.isInteger(c) && c > 0)
+        ? `→ Abzug: ${c} × ${S.pendingSteal.diff} = ${c * S.pendingSteal.diff} Punkte`
+        : "";
+    });
+  }
+}
+
+/* ---------- 4) Ende ---------- */
+function renderEnd(){
+  const w = S.players[S.winner];
+  const standings = [...S.players]
+    .sort((a,b)=>b.score-a.score)
+    .map(p=>`${esc(p.name)}: ${p.score}${p.out?" ✕":""}`).join(" · ");
+  app.innerHTML = `
+    <section class="card sketch winner">
+      <div class="crown">👑</div>
+      <h2>${esc(w.name)} gewinnt!</h2>
+      <div class="final">${standings}</div>
+    </section>
+    <section class="card sketch alt">
+      <h2>Richtung für die nächste Runde</h2>
+      <div class="opt-group" data-optgroup="dir">
+        ${optHTML("dir","next", S.dirNext ? "next":"prev", "Nachfolgender Spieler", "Im Uhrzeigersinn – Abzug trifft den nächsten in der Liste.")}
+        ${optHTML("dir","prev", S.dirNext ? "next":"prev", "Vorheriger Spieler", "Im Gegenuhrzeigersinn – Abzug trifft den vorherigen in der Liste.")}
+      </div>
+      <div class="row mt" style="justify-content:center">
+        <button class="primary" data-action="rematch">Revanche (gleiche Runde)</button>
+        <button class="ghost" data-action="newGame">Neues Spiel</button>
+      </div>
+    </section>
+    ${logHTML()}`;
+  bindOptGroups();
+}
+
+/* ============================ Aktionen ============================ */
+function doRoll(){
+  const inp = app.querySelector("#rollIn");
+  const err = app.querySelector("#rollErr");
+  const v = parseInt(inp.value, 10);
+  if (!Number.isInteger(v) || v < MIN_ROLL || v > MAX_ROLL){
+    err.textContent = `Bitte eine Zahl zwischen ${MIN_ROLL} und ${MAX_ROLL} eingeben (6 Würfel).`;
+    return;
+  }
+  submitRoll(v);
+}
+
+function doSteal(){
+  const inp = app.querySelector("#stealIn");
+  const v = parseInt(inp.value, 10);
+  submitSteal((Number.isInteger(v) && v >= 0) ? v : 0);
+}
+
+document.addEventListener("click", e=>{
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const a = btn.dataset.action;
+
+  if (a === "addPlayer"){ S.players.push({name:"", score:0, out:false}); render(); }
+  else if (a === "removePlayer"){ S.players.splice(+btn.dataset.i, 1); render(); }
+  else if (a === "toStart"){
+    S.players.forEach((p,i)=>{ p.name = p.name.trim() || `Spieler ${i+1}`; });
+    const names = S.players.map(p=>p.name.toLowerCase());
+    names.forEach((n,i)=>{ if (names.indexOf(n) !== i) S.players[i].name += ` (${i+1})`; });
+    if (S.starter >= S.players.length) S.starter = 0;
+    S.phase = "start";
+    render();
+  }
+  else if (a === "backToSetup"){ S.phase = "setup"; render(); }
+  else if (a === "beginGame"){
+    const bad = S.players.find(p => !Number.isInteger(p.score) || p.score < MIN_ROLL || p.score > MAX_ROLL);
+    const err = app.querySelector("#startErr");
+    if (bad){ err.textContent = `Bitte für alle Spieler eine Startpunktzahl zwischen ${MIN_ROLL} und ${MAX_ROLL} eintragen.`; return; }
+    S.phase = "game";
+    S.turn = S.starter;
+    S.round = 1;
+    S.history = [];
+    S.log = [];
+    addLog(`Runde 1`, "round");
+    addLog(`Spiel gestartet: ${S.players.map(p=>`<b>${esc(p.name)}</b> (${p.score})`).join(", ")} · ${S.variant==="slow"?"Slow-Death":"Instant-Death"} · ${S.dirNext?"Abzug beim nachfolgenden":"Abzug beim vorherigen"} Spieler.`);
+    render();
+  }
+  else if (a === "roll") doRoll();
+  else if (a === "steal") doSteal();
+  else if (a === "undo") undo();
+  else if (a === "rematch"){
+    S.players.forEach(p=>{ p.score = 0; p.out = false; });
+    S.phase = "start"; S.pendingSteal = null; S.feedback = null;
+    S.winner = null; S.log = []; S.history = [];
+    render();
+  }
+  else if (a === "newGame"){ S = freshState(); render(); }
+});
+
+render();
+
+/* PWA: Service Worker registrieren (Offline-Modus & Installierbarkeit) */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
