@@ -240,6 +240,34 @@
     body.fx-shake{animation:none}
   }
 
+  /* ---------- Punktefelder (Tipp-Eingabe) ---------- */
+  .padgrid{display:grid;gap:.4rem;margin-top:.45rem}
+  .cols7{grid-template-columns:repeat(7,1fr)}
+  .cols6{grid-template-columns:repeat(6,1fr)}
+  .cols5{grid-template-columns:repeat(5,1fr)}
+  .cols4{grid-template-columns:repeat(4,1fr)}
+  .cols4m{grid-template-columns:repeat(4,1fr);width:calc(100% * 4 / 7);margin-left:auto;margin-right:auto}
+  button.pad{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:.3rem 0;gap:0;
+    border:2px solid var(--line);border-radius:14px 8px 14px 8px;
+    font-family:'Caveat',cursive;font-weight:700;font-size:1.45rem;line-height:1.05;
+    background:rgba(243,239,228,.03);color:var(--chalk);
+  }
+  button.pad:hover{transform:none;background:rgba(243,239,228,.09)}
+  button.pad .sub{font-family:'Karla',sans-serif;font-size:.6rem;font-weight:700;letter-spacing:.03em;color:var(--chalk-dim)}
+  .pad.minus{border-color:rgba(232,131,122,.5);color:#efb3ab}
+  .pad.minus .sub{color:rgba(232,131,122,.85)}
+  .pad.zero{border-color:rgba(146,189,211,.7);color:var(--blue)}
+  .pad.zero .sub{color:rgba(146,189,211,.9)}
+  .pad.plus{border-color:rgba(234,197,92,.65);color:var(--yellow)}
+  .pad.plus .sub{color:rgba(234,197,92,.9)}
+  .pad.big{font-size:1.95rem;padding:.55rem 0}
+  .pad.small{font-size:1.2rem;padding:.18rem 0}
+  details.rare{margin-top:.6rem}
+  details.rare summary{cursor:pointer;font-size:.84rem;color:var(--chalk-dim);font-weight:700;padding:.15rem 0}
+  .padlabel{font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--chalk-dim);margin-top:.7rem}
+
   footer{text-align:center;margin-top:2.2rem;color:rgba(167,179,168,.55);font-size:.78rem}
 </style>
 </head>
@@ -263,6 +291,7 @@
       <li><b>Abziehen:</b> Wer über 30 würfelt, würfelt danach auf die Zielzahl (Differenz zu 30): alle Treffer zur Seite, Rest weiterwürfeln, bis kein Treffer mehr fällt. Sind alle 6 Würfel Treffer, geht es mit allen 6 weiter. Abzug = Treffer × Zielzahl – beim Nachbarn in der vereinbarten Richtung. Punkte werden nur abgezogen, nicht übertragen.</li>
       <li><b>Slow-Death:</b> Wer unter 0 fällt, spielt weiter und kann sich zurückkämpfen. Im Minus kann er nicht beklaut werden und beim Abziehen wird er übersprungen. Abziehen darf nur, wer seinen Zug mit 0 oder mehr Punkten beginnt.</li>
       <li><b>Instant-Death:</b> Wer unter 0 fällt, scheidet sofort aus und wird übersprungen.</li>
+      <li><b>Würfelanzahl:</b> Standard sind 6 Würfel mit Ziel 30. Wählbar sind 1–8 Würfel – die Zielzahl ist immer 5 × Würfelanzahl (alle Würfel zeigen eine 5). Liegt die Differenz über 6 (nur bei 7–8 Würfeln möglich), wählt der Spieler auf einer Zwischenseite: Zielzahl 1–6 (Abzug pro Treffer = gewählte Zahl) oder auf die 6 würfeln, wobei jede 6 als volle Differenz zählt.</li>
       <li><b>Ende:</b> Wenn nur noch ein Spieler einen Score von 0 oder mehr hat.</li>
     </ul>
   </details>
@@ -274,7 +303,9 @@
 "use strict";
 
 /* ============================== State ============================== */
-const MIN_ROLL = 6, MAX_ROLL = 36;
+const target  = () => S.dice * 5;   // Zielzahl: alle Würfel zeigen 5
+const minRoll = () => S.dice;       // alle Würfel zeigen 1
+const maxRoll = () => S.dice * 6;   // alle Würfel zeigen 6
 
 let S = freshState();
 
@@ -287,11 +318,16 @@ function freshState(){
     ],
     dirNext: true,               // true = Abzug beim nachfolgenden Spieler
     variant: "slow",             // slow | instant
+    dice: 6,                     // Anzahl Würfel (1–8), Zielzahl = 5 × dice
     anim: true,                  // Animationen an/aus
+    input: "tap",                // tap (Punktefelder) | type (Tastatur)
+    setupStep: 1,                // Setup-Maske 1–3
+    moreSteal: false,            // Eingabefeld für >8 Treffer sichtbar
     starter: 0,
     turn: 0,
     round: 1,
-    pendingSteal: null,          // {diff, targetIdx}
+    pendingSteal: null,          // {diff, value, targetIdx, choiceD?}
+    pendingChoice: null,         // {d, targetIdx} – Zwischenseite bei Differenz über 6
     feedback: null,              // {text, bad}
     log: [],
     history: [],
@@ -368,15 +404,16 @@ function checkWinner(){
 
 function submitRoll(sum){
   const p = S.players[S.turn];
+  const T = target();
   snapshot();
   S.feedback = null;
 
-  if (sum === 30){
-    addLog(`<b>${esc(p.name)}</b> würfelt genau <b>30</b> – nichts passiert. (Stand: ${p.score})`);
-    S.feedback = {text: `${p.name} würfelt genau 30 – nichts passiert.`};
+  if (sum === T){
+    addLog(`<b>${esc(p.name)}</b> würfelt genau <b>${T}</b> – nichts passiert. (Stand: ${p.score})`);
+    S.feedback = {text: `${p.name} würfelt genau ${T} – nichts passiert.`};
     nextTurn();
-  } else if (sum < 30){
-    const d = 30 - sum;
+  } else if (sum < T){
+    const d = T - sum;
     const wasNeg = p.score < 0;
     p.score -= d;
     addLog(`<b>${esc(p.name)}</b> würfelt ${sum} → <b>−${d}</b> → neuer Stand <b>${p.score}</b>.`);
@@ -384,53 +421,58 @@ function submitRoll(sum){
     checkDeath(p, wasNeg);
     if (!checkWinner()) nextTurn();
   } else {
-    const d = sum - 30;
+    const d = sum - T;
     const wasNeg = p.score < 0;
     p.score += d;
     addLog(`<b>${esc(p.name)}</b> würfelt ${sum} → <b>+${d}</b> → neuer Stand <b>${p.score}</b>.`);
     if (wasNeg && p.score >= 0){
       addLog(`💪 <b>${esc(p.name)}</b> ist zurück im positiven Bereich!`);
     }
-    const target = stealTarget(S.turn);
+    const targetIdx = stealTarget(S.turn);
     if (wasNeg){
       S.feedback = p.score < 0
         ? {text: `${p.name}: +${d} → Stand ${p.score}. Noch im Minus – darf nicht abziehen.`, bad: true}
         : {text: `${p.name}: +${d} → Stand ${p.score}. Zurück im Plus – abziehen ist aber erst ab dem nächsten Zug erlaubt.`};
       addLog(`${esc(p.name)} war zu Zugbeginn im Minus und darf deshalb nicht abziehen.`);
       nextTurn();
-    } else if (target === null){
+    } else if (targetIdx === null){
       S.feedback = {text: `${p.name}: +${d} → Stand ${p.score}. Kein gültiger Nachbar zum Abziehen.`};
       addLog(`Kein gültiger Nachbar – Abzug entfällt.`);
       if (!checkWinner()) nextTurn();
+    } else if (d > 6){
+      S.pendingChoice = {d, targetIdx};
+      S.feedback = {text: `${p.name}: +${d} → Stand ${p.score}. Differenz über 6 – Abzugsart wählen!`};
     } else {
-      S.pendingSteal = {diff: d, targetIdx: target};
+      S.pendingSteal = {diff: d, value: d, targetIdx};
       S.feedback = {text: `${p.name}: +${d} → Stand ${p.score}. Jetzt auf die ${d} würfeln!`};
     }
   }
   render();
-  if (sum <= 20) playFX("tease", {name: p.name});
+  if (sum <= Math.floor(target() * 2 / 3)) playFX("tease", {name: p.name});
 }
 
 function submitSteal(count){
-  const {diff, targetIdx} = S.pendingSteal;
+  const {diff, value, targetIdx} = S.pendingSteal;
   const p = S.players[S.turn];
   const t = S.players[targetIdx];
   snapshot();
 
-  const amount = count * diff;
+  const amount = count * value;
   if (amount > 0){
     t.score -= amount;
     addLog(`<b>${esc(p.name)}</b> sammelt ${count}× die <b>${diff}</b> → <b>−${amount}</b> bei <b>${esc(t.name)}</b> → neuer Stand <b>${t.score}</b>.`);
-    S.feedback = {text: `${t.name} verliert ${amount} Punkte (${count} × ${diff}) → neuer Stand ${t.score}.`, bad: true};
+    S.feedback = {text: `${t.name} verliert ${amount} Punkte (${count} × ${value}) → neuer Stand ${t.score}.`, bad: true};
     checkDeath(t, false);
   } else {
     addLog(`<b>${esc(p.name)}</b> trifft keine ${diff} – kein Abzug bei ${esc(t.name)}.`);
     S.feedback = {text: `Keine ${diff} getroffen – kein Abzug.`};
   }
   S.pendingSteal = null;
+  S.moreSteal = false;
   if (!checkWinner()) nextTurn();
   render();
-  if (amount > 10) playFX("bigsteal", {stealer: p.name, victim: t.name, amount});
+  const bigLimit = Math.round(target() / 3); // bei 6 Würfeln: 10
+  if (amount > bigLimit) playFX("bigsteal", {stealer: p.name, victim: t.name, amount});
   else if (amount === 0) playFX("nosteal", {stealer: p.name, victim: t.name, diff});
 }
 
@@ -554,7 +596,12 @@ function optHTML(name, value, current, title, desc){
 
 /* ---------- 1) Setup ---------- */
 function renderSetup(){
-  const rows = S.players.map((p,i)=>`
+  const step = S.setupStep || 1;
+  const titles = {1: "Spieler & Würfel", 2: "Reihenfolge & Spielvariante", 3: "Eingabe & Animationen"};
+  let body = "";
+
+  if (step === 1){
+    const rows = S.players.map((p,i)=>`
     <div class="pl-row">
       <span class="num">${i+1}.</span>
       <input class="grow" type="text" data-pname="${i}" value="${esc(p.name)}"
@@ -562,15 +609,23 @@ function renderSetup(){
       <button class="ghost" data-action="removePlayer" data-i="${i}" title="Spieler entfernen"
         ${S.players.length <= 2 ? "disabled" : ""} aria-label="Spieler ${i+1} entfernen">✕</button>
     </div>`).join("");
-
-  app.innerHTML = `
+    body = `
     <section class="card sketch">
       <h2>Wer spielt mit?</h2>
-      <p class="hint" style="margin:-.4rem 0 .7rem">Reihenfolge = Sitzreihenfolge am Tisch (im Uhrzeigersinn eintragen).</p>
+      <p class="hint" style="margin:-.4rem 0 .7rem">Reihenfolge = Sitzreihenfolge am Tisch (im Uhrzeigersinn eintragen). Zeilen ohne Namen werden beim Weiterklicken automatisch entfernt.</p>
       ${rows}
       <button class="ghost small mt" data-action="addPlayer" ${S.players.length >= 8 ? "disabled" : ""}>+ Spieler hinzufügen</button>
     </section>
 
+    <section class="card sketch alt">
+      <h2>Anzahl Würfel</h2>
+      <div class="padgrid" style="grid-template-columns:repeat(8,1fr)">
+        ${range(1, 8).map(n => `<button class="pad ${n === S.dice ? "plus" : ""}" data-action="setDice" data-n="${n}">${n}</button>`).join("")}
+      </div>
+      <p class="hint">Zielpunktzahl = 5 × Würfel: bei ${S.dice} Würfeln also <b style="color:var(--yellow)">${S.dice * 5}</b> (Wurfbereich ${S.dice}–${S.dice * 6}). Standard sind 6 Würfel mit Ziel 30.${S.dice >= 7 ? " Hinweis: Bei einer Differenz über 6 erscheint eine Auswahlseite – Zielzahl 1–6 oder 6 zählt als 7/8." : ""}</p>
+    </section>`;
+  } else if (step === 2){
+    body = `
     <section class="card sketch alt">
       <h2>In welche Richtung wird abgezogen?</h2>
       <div class="opt-group" data-optgroup="dir">
@@ -585,23 +640,40 @@ function renderSetup(){
         ${optHTML("variant","slow", S.variant, "Slow-Death", "Unter 0 heisst im Minus: weiterspielen und zurückkämpfen, aber weder beklaut werden noch abziehen.")}
         ${optHTML("variant","instant", S.variant, "Instant-Death", "Unter 0 heisst sofort ausgeschieden.")}
       </div>
+    </section>`;
+  } else {
+    body = `
+    <section class="card sketch">
+      <h2>Punkteeingabe</h2>
+      <div class="opt-group" data-optgroup="input">
+        ${optHTML("input","tap", S.input, "Antippen", "Vorgegebene Punktefelder – schnellste Eingabe am Tisch. Der Normalbereich um die Zielzahl ist am prominentesten.")}
+        ${optHTML("input","type", S.input, "Eintippen", "Zahl klassisch über die Tastatur eingeben.")}
+      </div>
     </section>
 
     <section class="card sketch alt">
       <h2>Animationen</h2>
       <div class="opt-group" data-optgroup="anim">
-        ${optHTML("anim","on", S.anim ? "on":"off", "An", "Freche Einblendungen bei schwachen Würfen (20 oder weniger), grossen Abzügen (mehr als 10 Punkte) und erfolglosen Abzugsversuchen.")}
+        ${optHTML("anim","on", S.anim ? "on":"off", "An", "Freche Einblendungen bei schwachen Würfen, grossen Abzügen und erfolglosen Abzugsversuchen.")}
         ${optHTML("anim","off", S.anim ? "on":"off", "Aus", "Nur nüchterne Punkteverwaltung ohne Extras.")}
       </div>
-    </section>
+    </section>`;
+  }
 
-    <div class="row" style="justify-content:flex-end">
-      <button class="primary" data-action="toStart">Weiter zu den Startpunkten →</button>
+  app.innerHTML = `
+    <p class="muted" style="text-align:center;margin-bottom:.9rem">Schritt ${step} von 3 · ${titles[step]}</p>
+    ${body}
+    ${S.setupErr && step === 1 ? `<p class="hint" style="color:var(--red);text-align:right;margin-bottom:.5rem">${S.setupErr}</p>` : ""}
+    <div class="row" style="justify-content:space-between">
+      ${step > 1 ? `<button class="ghost" data-action="setupBack">← Zurück</button>` : "<span></span>"}
+      <button class="primary" data-action="setupNext">${step < 3 ? "Weiter →" : "Weiter zu den Startpunkten →"}</button>
     </div>`;
 
-  app.querySelectorAll("[data-pname]").forEach(inp=>{
-    inp.addEventListener("input", e => { S.players[+e.target.dataset.pname].name = e.target.value; });
-  });
+  if (step === 1){
+    app.querySelectorAll("[data-pname]").forEach(inp=>{
+      inp.addEventListener("input", e => { S.players[+e.target.dataset.pname].name = e.target.value; });
+    });
+  }
   bindOptGroups();
 }
 
@@ -612,6 +684,7 @@ function bindOptGroups(){
       if (g.dataset.optgroup === "dir") S.dirNext = (v === "next");
       else if (g.dataset.optgroup === "variant") S.variant = v;
       else if (g.dataset.optgroup === "anim") S.anim = (v === "on");
+      else if (g.dataset.optgroup === "input") S.input = v;
       render();
     });
   });
@@ -623,8 +696,8 @@ function renderStart(){
     <div class="pl-row">
       <span class="grow" style="font-weight:700">${esc(p.name)}</span>
       <input class="score-in" style="width:6.5rem" type="number" inputmode="numeric"
-             min="${MIN_ROLL}" max="${MAX_ROLL}" data-pstart="${i}"
-             value="${p.score || ""}" placeholder="6–36">
+             min="${minRoll()}" max="${maxRoll()}" data-pstart="${i}"
+             value="${p.score || ""}" placeholder="${minRoll()}–${maxRoll()}">
     </div>`).join("");
 
   const starterOpts = S.players.map((p,i)=>
@@ -633,7 +706,7 @@ function renderStart(){
   app.innerHTML = `
     <section class="card sketch">
       <h2>Startpunkte erwürfeln</h2>
-      <p class="hint" style="margin:-.4rem 0 .8rem">Jeder würfelt seine Startpunktzahl (6 Würfel, max. 5 Würfe) – hier eintragen.</p>
+      <p class="hint" style="margin:-.4rem 0 .8rem">Jeder würfelt seine Startpunktzahl (${S.dice} Würfel, ${S.dice}–${maxRoll()} Punkte) – hier eintragen.</p>
       ${rows}
       <div class="mt">
         <label for="starterSel">Wer beginnt?</label>
@@ -689,37 +762,102 @@ function logHTML(){
   </details>`;
 }
 
+function padBtn(v, size){
+  const d = v - target();
+  const cls = d < 0 ? "minus" : d === 0 ? "zero" : "plus";
+  const sub = d < 0 ? "−" + (-d) : d === 0 ? "±0" : "+" + d;
+  return `<button class="pad ${cls} ${size}" data-action="padroll" data-v="${v}">${v}<span class="sub">${sub}</span></button>`;
+}
+function range(a, b){ return Array.from({length: b - a + 1}, (_, i) => a + i); }
+
 function renderGame(){
   const p = S.players[S.turn];
   const dirLabel = S.dirNext ? "Abzug → nachfolgender Spieler" : "Abzug → vorheriger Spieler";
   const varLabel = S.variant === "slow" ? "Slow-Death" : "Instant-Death";
 
   let panel;
-  if (S.pendingSteal){
-    const {diff, targetIdx} = S.pendingSteal;
+  if (S.pendingChoice){
+    const {d, targetIdx} = S.pendingChoice;
     const t = S.players[targetIdx];
     panel = `
       <section class="card sketch">
-        <div class="turn-title">${esc(p.name)} zieht bei ${esc(t.name)} ab</div>
-        <p class="hint" style="margin:.3rem 0 .8rem">
-          Zielzahl <b style="color:var(--yellow)">${diff}</b>: alle 6 Würfel werfen, jede ${diff} zur Seite,
-          Rest weiterwürfeln bis keine ${diff} mehr fällt. Bei 6 Treffern geht's mit allen Würfeln weiter.
+        <div class="turn-title">Differenz ${d} – wie will ${esc(p.name)} abziehen?</div>
+        <p class="hint" style="margin:.3rem 0 .4rem">
+          Eine Würfelzahl ${d} gibt es nicht. Wähle die Abzugsart bei <b>${esc(t.name)}</b>:
         </p>
+        <div class="padlabel">Möglichkeit 1: Zielzahl 1–6 wählen (Abzug pro Treffer = gewählte Zahl)</div>
+        <div class="padgrid" style="grid-template-columns:repeat(6,1fr)">
+          ${range(1, 6).map(n => `<button class="pad" data-action="chooseziel" data-n="${n}">${n}<span class="sub">−${n}/Treffer</span></button>`).join("")}
+        </div>
+        <div class="padlabel" style="margin-top:.9rem">Möglichkeit 2: Auf die 6 würfeln – jede 6 zählt als ${d}</div>
+        <div class="padgrid" style="grid-template-columns:repeat(6,1fr)">
+          <button class="pad plus" style="grid-column:span 6" data-action="choosesix">6 = ${d}<span class="sub">−${d} pro Treffer</span></button>
+        </div>
+      </section>`;
+  } else if (S.pendingSteal){
+    const {diff, value, targetIdx, choiceD} = S.pendingSteal;
+    const t = S.players[targetIdx];
+    let stealInput;
+    if (S.input === "tap" && !S.moreSteal){
+      const btns = range(0, 8).map(c =>
+        `<button class="pad ${c === 0 ? "" : "plus"}" data-action="padsteal" data-c="${c}">${c}<span class="sub">${c === 0 ? "kein Abzug" : "−" + (c * value)}</span></button>`
+      ).join("") + `<button class="pad" data-action="stealmore">9+<span class="sub">mehr…</span></button>`;
+      stealInput = `
+        <div class="padlabel">Anzahl gesammelte ${diff}er antippen</div>
+        <div class="padgrid cols5">${btns}</div>`;
+    } else {
+      stealInput = `
         <label for="stealIn">Wie viele ${diff}er insgesamt gesammelt?</label>
         <div class="row">
           <input id="stealIn" class="score-in grow" type="number" inputmode="numeric" min="0" max="99" placeholder="0" autofocus>
           <button class="primary" data-action="steal">Abziehen</button>
         </div>
-        <p class="hint" id="stealPrev"></p>
+        <p class="hint" id="stealPrev"></p>`;
+    }
+    panel = `
+      <section class="card sketch">
+        <div class="turn-title">${esc(p.name)} zieht bei ${esc(t.name)} ab</div>
+        <p class="hint" style="margin:.3rem 0 .4rem">
+          Zielzahl <b style="color:var(--yellow)">${diff}</b>: alle ${S.dice} Würfel werfen, jede ${diff} zur Seite,
+          Rest weiterwürfeln bis keine ${diff} mehr fällt. Sind alle Würfel Treffer, geht's mit allen weiter.${value !== diff ? ` Jede ${diff} zählt <b style="color:var(--yellow)">${value}</b> Punkte.` : ""}
+        </p>
+        ${choiceD ? `<button class="ghost small" data-action="stealback" style="margin-bottom:.5rem">‹ Abzugsart ändern</button>` : ""}
+        ${stealInput}
+      </section>`;
+  } else if (S.input === "tap"){
+    const T = target(), lo = minRoll(), hi = maxRoll();
+    const bigLo = Math.max(lo, T - 2), bigHi = Math.min(hi, T + 2);
+    const medLo = Math.max(lo, T - 9), medHi = bigLo - 1;
+    const rareHi = medLo - 1;
+    const topLo = bigHi + 1;
+    const row = (a, b, size, center) => {
+      if (b < a) return "";
+      const len = b - a + 1;
+      const style = center && len < 7
+        ? `grid-template-columns:repeat(${len},1fr);width:calc(100% * ${len} / 7);margin-left:auto;margin-right:auto`
+        : `grid-template-columns:repeat(${Math.min(len, 7)},1fr)`;
+      return `<div class="padgrid" style="${style}">${range(a, b).map(v => padBtn(v, size)).join("")}</div>`;
+    };
+    panel = `
+      <section class="card sketch">
+        <div class="turn-title">Am Zug: ${esc(p.name)}${p.score < 0 ? " (im Minus)" : ""}</div>
+        <div class="padlabel" style="margin-top:.4rem">Gewürfelte Augenzahl antippen (Ziel: ${T})</div>
+        ${rareHi >= lo ? `<details class="rare">
+          <summary>Selten: ${lo}–${rareHi}</summary>
+          <div class="padgrid cols5">${range(lo, rareHi).map(v => padBtn(v, "small")).join("")}</div>
+        </details>` : ""}
+        ${row(medLo, medHi, "", false)}
+        ${row(bigLo, bigHi, "big", false)}
+        ${row(topLo, hi, "", true)}
       </section>`;
   } else {
     panel = `
       <section class="card sketch">
         <div class="turn-title">Am Zug: ${esc(p.name)}${p.score < 0 ? " (im Minus)" : ""}</div>
-        <label for="rollIn" class="mt">Gewürfelte Augenzahl (${MIN_ROLL}–${MAX_ROLL})</label>
+        <label for="rollIn" class="mt">Gewürfelte Augenzahl (${minRoll()}–${maxRoll()}, Ziel ${target()})</label>
         <div class="row">
           <input id="rollIn" class="score-in grow" type="number" inputmode="numeric"
-                 min="${MIN_ROLL}" max="${MAX_ROLL}" placeholder="z.B. 32" autofocus>
+                 min="${minRoll()}" max="${maxRoll()}" placeholder="z.B. ${target() + 2}" autofocus>
           <button class="primary" data-action="roll">Eintragen</button>
         </div>
         <p class="hint" id="rollErr" style="color:var(--red)"></p>
@@ -729,7 +867,7 @@ function renderGame(){
   app.innerHTML = `
     <div class="statusbar sketch alt">
       <span class="dir">➜ ${dirLabel}</span>
-      <span class="muted">${varLabel} · Runde ${S.round}</span>
+      <span class="muted">${varLabel} · ${S.dice} 🎲 Ziel ${target()} · Runde ${S.round}</span>
       <button class="ghost small" data-action="undo" ${S.history.length ? "" : "disabled"}>↩ Rückgängig</button>
     </div>
     ${boardHTML()}
@@ -750,7 +888,7 @@ function renderGame(){
       const c = parseInt(stealIn.value,10);
       const prev = app.querySelector("#stealPrev");
       prev.textContent = (Number.isInteger(c) && c > 0)
-        ? `→ Abzug: ${c} × ${S.pendingSteal.diff} = ${c * S.pendingSteal.diff} Punkte`
+        ? `→ Abzug: ${c} × ${S.pendingSteal.value} = ${c * S.pendingSteal.value} Punkte`
         : "";
     });
   }
@@ -788,8 +926,8 @@ function doRoll(){
   const inp = app.querySelector("#rollIn");
   const err = app.querySelector("#rollErr");
   const v = parseInt(inp.value, 10);
-  if (!Number.isInteger(v) || v < MIN_ROLL || v > MAX_ROLL){
-    err.textContent = `Bitte eine Zahl zwischen ${MIN_ROLL} und ${MAX_ROLL} eingeben (6 Würfel).`;
+  if (!Number.isInteger(v) || v < minRoll() || v > maxRoll()){
+    err.textContent = `Bitte eine Zahl zwischen ${minRoll()} und ${maxRoll()} eingeben (${S.dice} Würfel).`;
     return;
   }
   submitRoll(v);
@@ -808,34 +946,75 @@ document.addEventListener("click", e=>{
 
   if (a === "addPlayer"){ S.players.push({name:"", score:0, out:false}); render(); }
   else if (a === "removePlayer"){ S.players.splice(+btn.dataset.i, 1); render(); }
-  else if (a === "toStart"){
-    S.players.forEach((p,i)=>{ p.name = p.name.trim() || `Spieler ${i+1}`; });
-    const names = S.players.map(p=>p.name.toLowerCase());
-    names.forEach((n,i)=>{ if (names.indexOf(n) !== i) S.players[i].name += ` (${i+1})`; });
-    if (S.starter >= S.players.length) S.starter = 0;
-    S.phase = "start";
+  else if (a === "setupNext"){
+    if (S.setupStep === 1){
+      S.players.forEach(p => { p.name = p.name.trim(); });
+      S.players = S.players.filter(p => p.name !== "");
+      if (S.players.length < 2){
+        while (S.players.length < 2) S.players.push({name:"", score:0, out:false});
+        S.setupErr = "Bitte mindestens zwei Spielernamen eingeben – leere Felder werden entfernt.";
+        render();
+        return;
+      }
+      S.setupErr = null;
+      const names = S.players.map(p=>p.name.toLowerCase());
+      names.forEach((n,i)=>{ if (names.indexOf(n) !== i) S.players[i].name += ` (${i+1})`; });
+      if (S.starter >= S.players.length) S.starter = 0;
+      S.setupStep = 2;
+    } else if (S.setupStep === 2){
+      S.setupStep = 3;
+    } else {
+      S.phase = "start";
+    }
     render();
   }
-  else if (a === "backToSetup"){ S.phase = "setup"; render(); }
+  else if (a === "setupBack"){ S.setupStep = Math.max(1, S.setupStep - 1); render(); }
+  else if (a === "backToSetup"){ S.phase = "setup"; S.setupStep = 3; render(); }
   else if (a === "beginGame"){
-    const bad = S.players.find(p => !Number.isInteger(p.score) || p.score < MIN_ROLL || p.score > MAX_ROLL);
+    const bad = S.players.find(p => !Number.isInteger(p.score) || p.score < minRoll() || p.score > maxRoll());
     const err = app.querySelector("#startErr");
-    if (bad){ err.textContent = `Bitte für alle Spieler eine Startpunktzahl zwischen ${MIN_ROLL} und ${MAX_ROLL} eintragen.`; return; }
+    if (bad){ err.textContent = `Bitte für alle Spieler eine Startpunktzahl zwischen ${minRoll()} und ${maxRoll()} eintragen.`; return; }
     S.phase = "game";
     S.turn = S.starter;
     S.round = 1;
     S.history = [];
     S.log = [];
     addLog(`Runde 1`, "round");
-    addLog(`Spiel gestartet: ${S.players.map(p=>`<b>${esc(p.name)}</b> (${p.score})`).join(", ")} · ${S.variant==="slow"?"Slow-Death":"Instant-Death"} · ${S.dirNext?"Abzug beim nachfolgenden":"Abzug beim vorherigen"} Spieler.`);
+    addLog(`Spiel gestartet: ${S.players.map(p=>`<b>${esc(p.name)}</b> (${p.score})`).join(", ")} · ${S.variant==="slow"?"Slow-Death":"Instant-Death"} · ${S.dirNext?"Abzug beim nachfolgenden":"Abzug beim vorherigen"} Spieler · ${S.dice} Würfel (Ziel ${target()}).`);
     render();
   }
+  else if (a === "setDice"){ S.dice = +btn.dataset.n; render(); }
   else if (a === "roll") doRoll();
+  else if (a === "padroll") submitRoll(+btn.dataset.v);
+  else if (a === "padsteal") submitSteal(+btn.dataset.c);
+  else if (a === "chooseziel"){
+    const n = +btn.dataset.n;
+    const {d, targetIdx} = S.pendingChoice;
+    S.pendingSteal = {diff: n, value: n, targetIdx, choiceD: d};
+    S.pendingChoice = null;
+    addLog(`${esc(S.players[S.turn].name)} wählt Zielzahl <b>${n}</b> (−${n} pro Treffer).`);
+    render();
+  }
+  else if (a === "choosesix"){
+    const {d, targetIdx} = S.pendingChoice;
+    S.pendingSteal = {diff: 6, value: d, targetIdx, choiceD: d};
+    S.pendingChoice = null;
+    addLog(`${esc(S.players[S.turn].name)} wählt: <b>6 zählt als ${d}</b> (−${d} pro Treffer).`);
+    render();
+  }
+  else if (a === "stealback"){
+    const ps = S.pendingSteal;
+    S.pendingChoice = {d: ps.choiceD, targetIdx: ps.targetIdx};
+    S.pendingSteal = null;
+    S.moreSteal = false;
+    render();
+  }
+  else if (a === "stealmore"){ S.moreSteal = true; render(); }
   else if (a === "steal") doSteal();
   else if (a === "undo") undo();
   else if (a === "rematch"){
     S.players.forEach(p=>{ p.score = 0; p.out = false; });
-    S.phase = "start"; S.pendingSteal = null; S.feedback = null;
+    S.phase = "start"; S.pendingSteal = null; S.pendingChoice = null; S.feedback = null;
     S.winner = null; S.log = []; S.history = [];
     render();
   }

@@ -1,5 +1,5 @@
 /* 30er – Service Worker: macht die App offline nutzbar */
-const CACHE = "dreissiger-v1";
+const CACHE = "dreissiger-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
