@@ -7,14 +7,19 @@ Alles läuft komplett im Browser, es wird kein Server und keine Datenbank benöt
 ## Funktionen
 
 - 2–8 Spieler mit Namen und Sitzreihenfolge
+- Vorlagen: Namen und alle Einstellungen lassen sich als benannte Vorlagen speichern (z.B. «Stammtisch») und beim nächsten Mal per Knopfdruck laden – die App startet immer leer, geladen wird nur auf Wunsch
 - Abzugsrichtung wählbar (nachfolgender / vorheriger Spieler)
 - Spielvarianten **Slow-Death** und **Instant-Death**
-- Eingabe der Startpunktzahlen (6–36) und freie Wahl des Startspielers
+- Wählbare Würfelanzahl 1–8 (Standard 6): Die Zielzahl ist immer 5 × Würfelanzahl (alle Würfel zeigen eine 5), Punktefelder und Berechnungen passen sich automatisch an; bei einer Differenz über 6 (7–8 Würfel) erscheint eine Zwischenseite mit Wahl der Abzugsart: Zielzahl 1–6 oder „6 zählt als 7/8"
+- Eingabe der Startpunktzahlen und freie Wahl des Startspielers
 - Automatische Auswertung jedes Wurfs: genau 30 / über 30 (+Differenz) / unter 30 (−Differenz)
 - Abzugs-Assistent: Zielzahl wird angezeigt, Anzahl der Treffer eingeben, Abzug wird berechnet und beim richtigen Nachbarn abgezogen (im Minus befindliche bzw. ausgeschiedene Spieler werden übersprungen)
+- Punkteeingabe wahlweise per Antippen (vorgegebene Punktefelder, Normalbereich 28–32 prominent, seltene Werte unter 21 eingeklappt) oder klassisch per Tastatur – im Setup wählbar, Standard: Antippen
 - Rückgängig-Funktion für Fehleingaben
 - Humorvolle Animationen: freches Aufziehen bei schwachen Würfen (20 oder weniger), Effekt-Einblendungen bei grossen Abzügen (mehr als 10 Punkte) und Spott bei erfolglosen Abzugsversuchen (0 Treffer) – im Setup ein-/ausschaltbar, Standard: an
+- Session-Siege: Solange Revanchen gespielt werden, trägt jeder Sieger eine Krone mit Sieganzahl neben dem Namen (👑2); bei «Neues Spiel» werden die Kronen zurückgesetzt
 - Spielprotokoll und Sieger-Bildschirm mit Revanche-Option – die Abzugsrichtung kann für die nächste Runde neu gewählt werden, Spieler und Variante bleiben gleich
+- Menü mit «Spielen» und «Scores»: Hall of Fame (höchste End-Punktzahlen der Sieger), Hall of Shame (tiefste je erreichte Punktestände), höchste Abzüge und schlechteste Würfe, filterbar nach Würfelanzahl – bleiben lokal auf dem Gerät gespeichert und über Spielabende hinweg erhalten
 - Installierbar auf Android und iOS (PWA), offline nutzbar
 
 ## Dateistruktur

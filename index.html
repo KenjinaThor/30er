@@ -290,6 +290,37 @@
   ol.score-list .who{flex:1}
   ol.score-list .meta{font-size:.75rem;color:var(--chalk-dim);white-space:nowrap}
   .empty-hint{color:var(--chalk-dim);font-size:.9rem;padding:.4rem 0}
+  .crown{color:var(--yellow);white-space:nowrap;font-size:.85em}
+  .crown b{font-family:'Caveat',cursive;font-size:1.05em;vertical-align:.05em}
+
+  /* ---------- Lebendigkeit ---------- */
+  .chips{display:flex;gap:.45rem;flex-wrap:wrap;justify-content:center;margin-bottom:1rem}
+  .chip{font-size:.85rem;font-weight:700;padding:.28rem .8rem;border-radius:999px;border:2px solid var(--line);color:var(--chalk-dim)}
+  .chip.on{border-color:var(--blue);color:var(--blue);transform:rotate(-1deg)}
+  @keyframes cardIn{from{opacity:0;transform:translateY(12px) rotate(-.5deg)}to{opacity:1;transform:none}}
+  #app > section, #app > .statusbar, #app > .board, .feedback{animation:cardIn .38s ease both}
+  #app > section:nth-of-type(2){animation-delay:.06s}
+  #app > section:nth-of-type(3){animation-delay:.12s}
+  #app > section:nth-of-type(4){animation-delay:.18s}
+  #app > section:nth-of-type(5){animation-delay:.24s}
+  @keyframes pulseGlow{
+    0%,100%{box-shadow:0 0 0 1px var(--yellow), 0 0 12px rgba(234,197,92,.12)}
+    50%{box-shadow:0 0 0 1px var(--yellow), 0 0 24px rgba(234,197,92,.32)}
+  }
+  .p-card.current{animation:pulseGlow 2.4s ease-in-out infinite}
+  @keyframes dieWobble{0%,100%{transform:rotate(8deg)}50%{transform:rotate(-7deg) translateY(-3px)}}
+  header .die{display:inline-block;animation:dieWobble 5s ease-in-out infinite}
+  button:active{transform:scale(.96)}
+  button.pad:active{transform:scale(.92);background:rgba(243,239,228,.14)}
+  ol.score-list:not(.shame) li:nth-child(1)::before{content:"🥇";font-size:1.05rem}
+  ol.score-list:not(.shame) li:nth-child(2)::before{content:"🥈";font-size:1.05rem}
+  ol.score-list:not(.shame) li:nth-child(3)::before{content:"🥉";font-size:1.05rem}
+  ol.score-list.shame li:nth-child(1)::before{content:"🙈";font-size:1.05rem}
+  @media (prefers-reduced-motion: reduce){
+    #app > section, #app > .statusbar, #app > .board, .feedback{animation:none}
+    .p-card.current{animation:none}
+    header .die{animation:none}
+  }
 
   footer{text-align:center;margin-top:2.2rem;color:rgba(167,179,168,.55);font-size:.78rem}
 </style>
@@ -364,9 +395,9 @@ const STATS_KEY = "dreissiger-stats-v1";
 function loadStats(){
   try{
     const s = JSON.parse(localStorage.getItem(STATS_KEY));
-    if (s && typeof s === "object") return {players: s.players || {}, steals: s.steals || [], rolls: s.rolls || []};
+    if (s && typeof s === "object") return {players: s.players || {}, steals: s.steals || [], rolls: s.rolls || [], shame: s.shame || [], fame: s.fame || []};
   }catch(e){}
-  return {players: {}, steals: [], rolls: []};
+  return {players: {}, steals: [], rolls: [], shame: [], fame: []};
 }
 let STATS = loadStats();
 function saveStats(){ try{ localStorage.setItem(STATS_KEY, JSON.stringify(STATS)); }catch(e){} }
@@ -374,18 +405,33 @@ function statPlayer(name){
   if (!STATS.players[name]) STATS.players[name] = {wins: 0, deaths: 0, games: 0};
   return STATS.players[name];
 }
+function trimPerDice(arr, cmp){
+  arr.sort(cmp);
+  const seen = {};
+  return arr.filter(e => { seen[e.dice] = (seen[e.dice] || 0) + 1; return seen[e.dice] <= 10; });
+}
 function recordSteal(stealer, victim, amount){
   STATS.steals.push({s: stealer, v: victim, a: amount, dice: S.dice, d: Date.now()});
-  STATS.steals.sort((x, y) => y.a - x.a);
-  STATS.steals = STATS.steals.slice(0, 10);
+  STATS.steals = trimPerDice(STATS.steals, (x, y) => y.a - x.a);
   saveStats();
 }
 function recordBadRoll(name, sum){
   STATS.rolls.push({n: name, sum, T: target(), short: target() - sum, dice: S.dice, d: Date.now()});
-  STATS.rolls.sort((x, y) => y.short - x.short);
-  STATS.rolls = STATS.rolls.slice(0, 10);
+  STATS.rolls = trimPerDice(STATS.rolls, (x, y) => y.short - x.short);
   saveStats();
 }
+
+/* ============================ Vorlagen ============================ */
+const PRESET_KEY = "dreissiger-presets-v1";
+function loadPresets(){
+  try{
+    const p = JSON.parse(localStorage.getItem(PRESET_KEY));
+    if (Array.isArray(p)) return p;
+  }catch(e){}
+  return [];
+}
+let PRESETS = loadPresets();
+function savePresets(){ try{ localStorage.setItem(PRESET_KEY, JSON.stringify(PRESETS)); }catch(e){} }
 
 const app = document.getElementById("app");
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -452,7 +498,16 @@ function checkWinner(){
   if (alive.length === 1 && S.players.length > 1){
     S.winner = S.players.indexOf(alive[0]);
     S.phase = "end";
+    alive[0].wins = (alive[0].wins || 0) + 1;   // Session-Krone (bis "Neues Spiel")
     statPlayer(alive[0].name).wins++;
+    if (alive[0].score > 0){
+      STATS.fame.push({n: alive[0].name, score: alive[0].score, dice: S.dice, d: Date.now()});
+      STATS.fame = trimPerDice(STATS.fame, (a, b) => b.score - a.score);
+    }
+    S.players.forEach(pl => {
+      if ((pl.minScore ?? 0) < 0) STATS.shame.push({n: pl.name, score: pl.minScore, dice: S.dice, d: Date.now()});
+    });
+    STATS.shame = trimPerDice(STATS.shame, (a, b) => a.score - b.score);
     saveStats();
     addLog(`🏆 <b>${esc(alive[0].name)}</b> gewinnt das Spiel!`);
     return true;
@@ -476,6 +531,7 @@ function submitRoll(sum){
     p.score -= d;
     addLog(`<b>${esc(p.name)}</b> würfelt ${sum} → <b>−${d}</b> → neuer Stand <b>${p.score}</b>.`);
     S.feedback = {text: `${p.name}: ${sum} gewürfelt → −${d} Punkte → neuer Stand ${p.score}.`, bad: true};
+    p.minScore = Math.min(p.minScore ?? p.score, p.score);
     recordBadRoll(p.name, sum);
     checkDeath(p, wasNeg);
     if (!checkWinner()) nextTurn();
@@ -521,6 +577,7 @@ function submitSteal(count){
     t.score -= amount;
     addLog(`<b>${esc(p.name)}</b> sammelt ${count}× die <b>${diff}</b> → <b>−${amount}</b> bei <b>${esc(t.name)}</b> → neuer Stand <b>${t.score}</b>.`);
     S.feedback = {text: `${t.name} verliert ${amount} Punkte (${count} × ${value}) → neuer Stand ${t.score}.`, bad: true};
+    t.minScore = Math.min(t.minScore ?? t.score, t.score);
     recordSteal(p.name, t.name, amount);
     checkDeath(t, false);
   } else {
@@ -656,31 +713,37 @@ function render(){
 function fmtDate(ts){ return new Date(ts).toLocaleDateString("de-CH"); }
 
 function renderScores(){
-  const byWins = Object.entries(STATS.players).filter(([,v]) => v.wins > 0)
-    .sort((a, b) => b[1].wins - a[1].wins).slice(0, 10);
-  const byDeaths = Object.entries(STATS.players).filter(([,v]) => v.deaths > 0)
-    .sort((a, b) => b[1].deaths - a[1].deaths).slice(0, 10);
   const empty = t => `<p class="empty-hint">${t}</p>`;
+  const f = S.scoreFilter || 0;
+  const flt = arr => (f ? arr.filter(e => e.dice === f) : arr).slice(0, 10);
+  const diceSet = [...new Set([...STATS.fame, ...STATS.shame, ...STATS.steals, ...STATS.rolls].map(e => e.dice))].sort((a, b) => a - b);
+  const fame = flt(STATS.fame), shame = flt(STATS.shame), steals = flt(STATS.steals), rolls = flt(STATS.rolls);
 
   app.innerHTML = `
+    ${diceSet.length > 1 ? `<div class="chips" role="group" aria-label="Nach Würfelanzahl filtern">
+      <button class="chip ${f === 0 ? "on" : ""}" data-action="scoreFilter" data-f="0">Alle</button>
+      ${diceSet.map(n => `<button class="chip ${f === n ? "on" : ""}" data-action="scoreFilter" data-f="${n}">${n} 🎲</button>`).join("")}
+    </div>` : ""}
+
     <section class="card sketch">
       <h2>🏆 Hall of Fame</h2>
-      ${byWins.length ? `<ol class="score-list">${byWins.map(([n, v]) =>
-        `<li><span class="val">${v.wins}×</span><span class="who">${esc(n)}</span><span class="meta">${v.games} Spiele</span></li>`).join("")}</ol>`
+      <p class="hint" style="margin:-.4rem 0 .3rem">Die höchsten Endpunktzahlen der Sieger.</p>
+      ${fame.length ? `<ol class="score-list">${fame.map(e =>
+        `<li><span class="val">${e.score}</span><span class="who">${esc(e.n)}</span><span class="meta">${e.dice} 🎲 · ${fmtDate(e.d)}</span></li>`).join("")}</ol>`
         : empty("Noch keine Siege verewigt – spielt eine Runde!")}
     </section>
 
     <section class="card sketch alt">
       <h2>🙈 Hall of Shame</h2>
-      <p class="hint" style="margin:-.4rem 0 .3rem">Wer am öftesten unter 0 gefallen ist.</p>
-      ${byDeaths.length ? `<ol class="score-list shame">${byDeaths.map(([n, v]) =>
-        `<li><span class="val">${v.deaths}×</span><span class="who">${esc(n)}</span><span class="meta">${v.games} Spiele</span></li>`).join("")}</ol>`
-        : empty("Noch ist niemand unter 0 gefallen – Glück gehabt.")}
+      <p class="hint" style="margin:-.4rem 0 .3rem">Die tiefsten Punktestände aller Zeiten.</p>
+      ${shame.length ? `<ol class="score-list shame">${shame.map(e =>
+        `<li><span class="val">${e.score}</span><span class="who">${esc(e.n)}</span><span class="meta">${e.dice} 🎲 · ${fmtDate(e.d)}</span></li>`).join("")}</ol>`
+        : empty("Hier ist noch niemand tief gefallen – Glück gehabt.")}
     </section>
 
     <section class="card sketch">
       <h2>💥 Höchste Abzüge</h2>
-      ${STATS.steals.length ? `<ol class="score-list">${STATS.steals.map(e =>
+      ${steals.length ? `<ol class="score-list">${steals.map(e =>
         `<li><span class="val">−${e.a}</span><span class="who">${esc(e.s)} → ${esc(e.v)}</span><span class="meta">${e.dice} 🎲 · ${fmtDate(e.d)}</span></li>`).join("")}</ol>`
         : empty("Noch keine Abzüge registriert.")}
     </section>
@@ -688,7 +751,7 @@ function renderScores(){
     <section class="card sketch alt">
       <h2>🎲 Schlechteste Würfe</h2>
       <p class="hint" style="margin:-.4rem 0 .3rem">Die grössten Abstände unter der Zielzahl.</p>
-      ${STATS.rolls.length ? `<ol class="score-list shame">${STATS.rolls.map(e =>
+      ${rolls.length ? `<ol class="score-list shame">${rolls.map(e =>
         `<li><span class="val">−${e.short}</span><span class="who">${esc(e.n)}: ${e.sum} gewürfelt (Ziel ${e.T})</span><span class="meta">${e.dice} 🎲 · ${fmtDate(e.d)}</span></li>`).join("")}</ol>`
         : empty("Noch keine Würfe unter der Zielzahl – kaum zu glauben.")}
     </section>
@@ -713,6 +776,19 @@ function renderSetup(){
   let body = "";
 
   if (step === 1){
+    const presetCard = PRESETS.length ? `
+    <section class="card sketch">
+      <h2>Vorlage laden</h2>
+      ${PRESETS.map((v, i) => `
+      <div class="pl-row">
+        <div class="grow">
+          <b>${esc(v.name)}</b><br>
+          <span class="hint" style="margin:0">${v.players.map(esc).join(", ")} · ${v.dice} 🎲 · ${v.variant === "slow" ? "Slow-Death" : "Instant-Death"} · Abzug ${v.dirNext ? "nachfolgend" : "vorherig"}</span>
+        </div>
+        <button class="primary small" data-action="loadPreset" data-i="${i}">Laden</button>
+        <button class="ghost" data-action="delPreset" data-i="${i}" title="Vorlage löschen" aria-label="Vorlage ${esc(v.name)} löschen">✕</button>
+      </div>`).join("")}
+    </section>` : "";
     const rows = S.players.map((p,i)=>`
     <div class="pl-row">
       <span class="num">${i+1}.</span>
@@ -722,6 +798,7 @@ function renderSetup(){
         ${S.players.length <= 2 ? "disabled" : ""} aria-label="Spieler ${i+1} entfernen">✕</button>
     </div>`).join("");
     body = `
+    ${presetCard}
     <section class="card sketch">
       <h2>Wer spielt mit?</h2>
       <p class="hint" style="margin:-.4rem 0 .7rem">Reihenfolge = Sitzreihenfolge am Tisch (im Uhrzeigersinn eintragen). Zeilen ohne Namen werden beim Weiterklicken automatisch entfernt.</p>
@@ -769,6 +846,15 @@ function renderSetup(){
         ${optHTML("anim","on", S.anim ? "on":"off", "An", "Freche Einblendungen bei schwachen Würfen, grossen Abzügen und erfolglosen Abzugsversuchen.")}
         ${optHTML("anim","off", S.anim ? "on":"off", "Aus", "Nur nüchterne Punkteverwaltung ohne Extras.")}
       </div>
+    </section>
+
+    <section class="card sketch">
+      <h2>Als Vorlage speichern</h2>
+      <p class="hint" style="margin:-.4rem 0 .6rem">Speichert Spieler, Würfelanzahl, Richtung, Variante, Eingabe und Animationen als abrufbare Vorlage (z.B. «Stammtisch»). Gleicher Name überschreibt die bestehende Vorlage.</p>
+      <div class="row">
+        <input id="presetName" class="grow" type="text" maxlength="24" placeholder="Name der Vorlage" autocomplete="off">
+        <button class="ghost" data-action="savePreset">Speichern</button>
+      </div>
     </section>`;
   }
 
@@ -776,6 +862,7 @@ function renderSetup(){
     <p class="muted" style="text-align:center;margin-bottom:.9rem">Schritt ${step} von 3 · ${titles[step]}</p>
     ${body}
     ${S.setupErr && step === 1 ? `<p class="hint" style="color:var(--red);text-align:right;margin-bottom:.5rem">${S.setupErr}</p>` : ""}
+    ${S.setupMsg ? `<p class="hint" style="color:var(--blue);text-align:right;margin-bottom:.5rem">${S.setupMsg}</p>` : ""}
     <div class="row" style="justify-content:space-between">
       ${step > 1 ? `<button class="ghost" data-action="setupBack">← Zurück</button>` : "<span></span>"}
       <button class="primary" data-action="setupNext">${step < 3 ? "Weiter →" : "Weiter zu den Startpunkten →"}</button>
@@ -806,7 +893,7 @@ function bindOptGroups(){
 function renderStart(){
   const rows = S.players.map((p,i)=>`
     <div class="pl-row">
-      <span class="grow" style="font-weight:700">${esc(p.name)}</span>
+      <span class="grow" style="font-weight:700">${esc(p.name)}${crown(p)}</span>
       <input class="score-in" style="width:6.5rem" type="number" inputmode="numeric"
              min="${minRoll()}" max="${maxRoll()}" data-pstart="${i}"
              value="${p.score || ""}" placeholder="${minRoll()}–${maxRoll()}">
@@ -840,6 +927,10 @@ function renderStart(){
 }
 
 /* ---------- 3) Spiel ---------- */
+function crown(p){
+  return p.wins ? ` <span class="crown" title="${p.wins} Sieg${p.wins > 1 ? "e" : ""} in dieser Runde">👑<b>${p.wins}</b></span>` : "";
+}
+
 function pipSVG(){
   return `<svg class="pip" width="20" height="20" viewBox="0 0 34 34" aria-hidden="true"><rect x="2" y="2" width="30" height="30" rx="7" fill="none" stroke="#eac55c" stroke-width="3"/><circle cx="11" cy="11" r="3" fill="#eac55c"/><circle cx="23" cy="23" r="3" fill="#eac55c"/><circle cx="23" cy="11" r="3" fill="#eac55c"/><circle cx="11" cy="23" r="3" fill="#eac55c"/></svg>`;
 }
@@ -854,7 +945,7 @@ function boardHTML(){
     else if (cur) tag = `<div class="tag turn">am Zug</div>`;
     return `<div class="p-card ${cur?"current":""} ${neg?"negative":""} ${p.out?"out":""}">
       ${cur ? pipSVG() : ""}
-      <div class="name">${esc(p.name)}</div>
+      <div class="name">${esc(p.name)}${crown(p)}</div>
       <div class="score chalk-text">${p.score}</div>
       ${tag}
     </div>`;
@@ -1011,11 +1102,11 @@ function renderEnd(){
   const w = S.players[S.winner];
   const standings = [...S.players]
     .sort((a,b)=>b.score-a.score)
-    .map(p=>`${esc(p.name)}: ${p.score}${p.out?" ✕":""}`).join(" · ");
+    .map(p=>`${esc(p.name)}${crown(p)}: ${p.score}${p.out?" ✕":""}`).join(" · ");
   app.innerHTML = `
     <section class="card sketch winner">
       <div class="crown">👑</div>
-      <h2>${esc(w.name)} gewinnt!</h2>
+      <h2>${esc(w.name)} gewinnt!${crown(w)}</h2>
       <div class="final">${standings}</div>
     </section>
     <section class="card sketch alt">
@@ -1078,14 +1169,56 @@ document.addEventListener("click", e=>{
     } else {
       S.phase = "start";
     }
+    S.setupMsg = null;
     render();
   }
-  else if (a === "setupBack"){ S.setupStep = Math.max(1, S.setupStep - 1); render(); }
+  else if (a === "setupBack"){ S.setupStep = Math.max(1, S.setupStep - 1); S.setupMsg = null; render(); }
+  else if (a === "loadPreset"){
+    const v = PRESETS[+btn.dataset.i];
+    if (v){
+      S.players = v.players.map(n => ({name: n, score: 0, out: false}));
+      while (S.players.length < 2) S.players.push({name: "", score: 0, out: false});
+      S.dice = v.dice; S.dirNext = v.dirNext; S.variant = v.variant;
+      S.input = v.input; S.anim = v.anim;
+      const names = S.players.map(p => p.name.toLowerCase());
+      names.forEach((n, i) => { if (names.indexOf(n) !== i) S.players[i].name += ` (${i + 1})`; });
+      if (S.starter >= S.players.length) S.starter = 0;
+      S.setupErr = null; S.setupMsg = null;
+      S.phase = "start";   // Vorlage vollständig → direkt zu den Startpunkten
+      render();
+    }
+  }
+  else if (a === "delPreset"){
+    const v = PRESETS[+btn.dataset.i];
+    if (v && window.confirm(`Vorlage «${v.name}» löschen?`)){
+      PRESETS.splice(+btn.dataset.i, 1);
+      savePresets();
+      render();
+    }
+  }
+  else if (a === "savePreset"){
+    const inp = app.querySelector("#presetName");
+    const name = (inp.value || "").trim();
+    if (!name){ S.setupMsg = null; S.setupErr = null; inp.focus(); return; }
+    const preset = {
+      name,
+      players: S.players.map(p => p.name.trim()).filter(Boolean),
+      dice: S.dice, dirNext: S.dirNext, variant: S.variant,
+      input: S.input, anim: S.anim, d: Date.now(),
+    };
+    const idx = PRESETS.findIndex(v => v.name.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) PRESETS[idx] = preset; else PRESETS.push(preset);
+    PRESETS = PRESETS.slice(0, 12);
+    savePresets();
+    S.setupMsg = idx >= 0 ? `Vorlage «${esc(name)}» aktualisiert.` : `Vorlage «${esc(name)}» gespeichert.`;
+    render();
+  }
   else if (a === "viewPlay"){ S.view = "play"; render(); }
   else if (a === "viewScores"){ S.view = "scores"; render(); }
+  else if (a === "scoreFilter"){ S.scoreFilter = +btn.dataset.f; render(); }
   else if (a === "resetStats"){
     if (window.confirm("Wirklich alle Statistiken (Hall of Fame, Abzüge, Würfe) unwiderruflich löschen?")){
-      STATS = {players: {}, steals: [], rolls: []};
+      STATS = {players: {}, steals: [], rolls: [], shame: [], fame: []};
       saveStats();
       render();
     }
@@ -1095,7 +1228,7 @@ document.addEventListener("click", e=>{
     const bad = S.players.find(p => !Number.isInteger(p.score) || p.score < minRoll() || p.score > maxRoll());
     const err = app.querySelector("#startErr");
     if (bad){ err.textContent = `Bitte für alle Spieler eine Startpunktzahl zwischen ${minRoll()} und ${maxRoll()} eintragen.`; return; }
-    S.players.forEach(p => { statPlayer(p.name).games++; });
+    S.players.forEach(p => { statPlayer(p.name).games++; p.minScore = p.score; });
     saveStats();
     S.phase = "game";
     S.turn = S.starter;
